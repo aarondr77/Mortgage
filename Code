@@ -133,6 +133,7 @@ contract MortgageContract {
     }
 }
 
+// The MortgageCreator Contract is in Ether
 contract MortgageCreator {
     
     mapping (uint => contractTerms) allTerms;
