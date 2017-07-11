@@ -1,0 +1,220 @@
+pragma solidity ^0.4.8;
+
+
+// THE MORTGAGE CONTRACT IS IN FINNEY (1 / 1000 Ether)
+contract MortgageContract {
+    
+    
+    //PROBLEM: What happens if someone does not pay? I think in real life that is why
+    //         there is a down payment, so it will be the same here
+    //PROBLEM: I need to update lastPayment at the time when the correct time. For example,
+    //         if payments are due at the first of each month, I need to update lastPayment 
+    //         when the on the first of each month. This should not be effected if the borrower
+    //         makes extra payments. PROBLEM: what if the borrower makes a payment during the month
+    //         so it counts all towards the principal, but does not make a payment at the end of the 
+    //         month when the payment is due. Maybe I should have a collectPayment that the lendor calls
+    //         at the start of each month. All of the payments made by the borrower for the month will then 
+    //         be correctly allocated. I will first find if he has payed enough to cover the one payment,
+    //         and if he has then the rest of the payment will go towards principal. But this gets rid of
+    //         the benefit of paying early in a month so that you reduce the interest for your next payment.
+    //         I can account for this by figuring out if he has enough to cover payment if there was no 
+    //         reduction in interest. Then calculate the new (and smaller) payment with all of the extra money
+    //         he payed down. Then deduct everything, but the new interest from the principal
+    //PROBLEM: Under this method, if you only make the minimum payment, which is the interest due, \
+    //         you will only pay off the interest and never reduce the principal so you will never 
+    //         pay off the mortgage
+    
+    address lender;
+    address borrower;
+    uint remainingPrincipal;
+    uint interestRate;
+    uint timeBetweenPayments;
+    uint mortgageLength;
+    uint lastPayment;
+    uint totalInterestExpense;
+    
+    uint uncollectedPayments;
+    uint paymentsMade;
+    uint paymentsDue;
+    
+    mapping(address => uint) withdrawable;
+    
+    modifier isInterestParty (address _sender) {
+        require (lender == _sender || borrower == _sender);
+        _;
+    }
+    
+    modifier isBorrower (address _sender) {
+        require (_sender == borrower);
+        _;
+    }
+    
+    modifier isLender (address _sender) {
+        require (_sender == lender);
+        _;
+    }
+    
+    modifier isPaymentDue () {
+        require (now > lastPayment + timeBetweenPayments);
+        _;
+    }
+
+    /*function isPaymentDue () returns (bool) {
+        if (now < lastPayment + timeBetweenPayments) {
+            return false;
+        } else {
+            return true;
+        }
+        
+    }
+    */
+    
+    function MortgageContract (address _lender, address _borrower,
+        uint _principal, uint _interestRate, uint _timeBetweenPayments, 
+        uint _downPayment, uint _mortgageLength) payable {
+            
+        lender = _lender;
+        borrower = _borrower;
+        remainingPrincipal = _principal * 1000;
+        interestRate = _interestRate;
+        timeBetweenPayments = _timeBetweenPayments;
+        mortgageLength = _mortgageLength;
+        
+        withdrawable[_lender] = _downPayment;
+        withdrawable[_borrower] = _principal;
+        paymentsMade += 1;
+
+    }
+    
+    function makePayment () payable isBorrower(msg.sender) {
+        uncollectedPayments += msg.value;
+        
+        
+        /*if (isPaymentDue ()) {
+            uint interestExpense = remainingPrincipal * interestRate / 100000;
+            totalInterestExpense += interestExpense;
+            remainingPrincipal -= msg.value - interestExpense;
+        } else {
+            remainingPrincipal -= msg.value;
+        }
+        withdrawable[lender] += msg.value;
+        */
+        
+    }
+    
+    function collectPayments () isLender(msg.sender) isPaymentDue() {
+        
+    }
+    
+    function inquiry () isInterestParty (msg.sender) returns (uint, uint, uint) {
+        return (remainingPrincipal, totalInterestExpense, paymentsMade);
+    }
+    
+    function withdrawFunds () {
+        uint amount = withdrawable[msg.sender];
+        require (amount > 0);
+        withdrawable[msg.sender] = 0;
+        msg.sender.transfer(amount);
+    }
+    
+    
+}
+
+contract MortgageCreator {
+    
+    mapping (uint => contractTerms) allTerms;
+    uint numberOfProposals;
+    
+    
+    struct contractTerms {
+        uint proposedDate;
+        address borrower;
+        address lender;
+        uint principal;
+        uint interestRate;
+        uint yearlyCompounds;
+        uint downPayment;
+        uint mortgageLength;
+        bool lenderApproved;
+        bool borrowerApproved;
+        bool signed;
+    }
+    
+    modifier isLender (address _sender, uint _TermsID) {
+        require (allTerms[_TermsID].lender == _sender);
+        _;
+    }
+    
+    modifier isBorrower (address _sender, uint _TermsID) {
+        require (allTerms[_TermsID].borrower == _sender);
+        _;
+    }
+    
+    modifier isInterestParty (address _sender, uint _TermsID) {
+        require (allTerms[_TermsID].borrower == _sender || 
+            allTerms[_TermsID].lender == _sender);
+        _;
+    }
+
+    function declareMatch (address _borrower, address _lender) returns (uint) {
+        numberOfProposals ++;
+        allTerms[numberOfProposals].borrower = _borrower;
+        allTerms[numberOfProposals].lender = _lender;
+        return numberOfProposals;
+    }
+    
+    /*function checkIdentity (address _check, uint _TermsID) returns (address) {
+        if (msg.sender == allTerms[_TermsID].borrower) {
+            return (allTerms[_TermsID].borrower);
+        } else {
+            return (allTerms[_TermsID].lender);
+        }
+    }
+    */
+    
+    function proposeContractTerms (uint _interestRate, uint _yearlyCompounds,
+            uint _downPayment, uint _principal, uint _TermsID, uint _mortgageLength) 
+            isLender (msg.sender, _TermsID) payable {
+        require (msg.value == _principal);
+        allTerms[_TermsID].lenderApproved = true;
+        allTerms[_TermsID].interestRate = _interestRate;
+        allTerms[_TermsID].yearlyCompounds = _yearlyCompounds;
+        allTerms[_TermsID].downPayment = _downPayment;
+        allTerms[_TermsID].principal = _principal;
+        allTerms[_TermsID].proposedDate = now;
+        allTerms[_TermsID].mortgageLength = _mortgageLength;
+        
+    }
+    
+    function acceptTerms (uint _TermsID) isBorrower (msg.sender, _TermsID) payable {
+        require (msg.value == allTerms[_TermsID].downPayment);
+        allTerms[_TermsID].borrowerApproved = true;
+    }
+    
+    function declineTerms (uint _TermsID) isBorrower (msg.sender, _TermsID) {
+        delete allTerms[_TermsID];
+    }
+    
+    function retractOffer (uint _TermsID) isLender (msg.sender, _TermsID) {
+        if (now > allTerms[_TermsID].proposedDate && !allTerms[_TermsID].signed) {
+            delete allTerms[_TermsID];
+        }
+    }
+    
+    function signContract (uint _TermsID) isInterestParty (msg.sender, _TermsID) {
+        require (allTerms[_TermsID].borrowerApproved = true);
+        //interest rate multiplied by 100,000 for rounding purposes 
+        uint effectiveInterestRate = ((1 + allTerms[_TermsID].interestRate ) 
+            ^ (1 / allTerms[_TermsID].yearlyCompounds) - 1) * 100000;
+        uint timeBetweenPayments = 365 / allTerms[_TermsID].yearlyCompounds;
+        MortgageContract newMortgage = new MortgageContract 
+            (allTerms[_TermsID].lender, allTerms[_TermsID].borrower,
+            allTerms[_TermsID].principal, effectiveInterestRate, 
+            timeBetweenPayments, allTerms[_TermsID].downPayment, 
+            allTerms[_TermsID].mortgageLength);
+        allTerms[_TermsID].signed = true;
+        newMortgage.transfer(allTerms[_TermsID].downPayment + allTerms[_TermsID].principal);
+    }
+    
+    
+ }
