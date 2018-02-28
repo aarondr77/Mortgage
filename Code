@@ -39,7 +39,7 @@ contract MortgageContract
         _;
     }
 
-    event collectMoney (uint, uint);
+    event CollectMoney (uint, uint);
         
     function MortgageContract (address _lender, address _borrower,
         uint _principal, uint _interestRate, uint _timeBetweenPayments, 
@@ -96,7 +96,7 @@ contract MortgageContract
             withdrawable[lender] += msg.value;
         }
         uncollectedPayments = 0;
-        collectMoney(withdrawable[lender], withdrawable[borrower]);
+        CollectMoney(withdrawable[lender], withdrawable[borrower]);
     }
     
     function inquiry () isInterestParty (msg.sender) returns (uint, uint, uint) {
