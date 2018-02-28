@@ -2,6 +2,8 @@
 
  PROBLEM: What happens if someone does not pay? I think in real life that is why
           there is a down payment, so it will be the same here
+          
+          
  Methodology: I need to update lastPayment at the correct time. For example,
              if payments are due at the first of each month, I need to update lastPayment 
              when the on the first of each month. This should not be effected if the borrower
@@ -15,6 +17,8 @@
              I can account for this by figuring out if he has enough to cover the required payment
              if there was no reduction in interest. Then calculate the new (and smaller)  
              required payment. Then deduct everything except the new interest payment from the principal
+             
+             
  PROBLEM: Under this method, if you only make the minimum payment, which is the interest due,
           you will only pay off the interest and never reduce the principal so you will never 
           pay off the mortgage
